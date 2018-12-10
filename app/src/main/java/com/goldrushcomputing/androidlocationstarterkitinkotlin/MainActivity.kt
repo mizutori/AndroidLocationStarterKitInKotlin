@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.*
 import android.graphics.Color
 import android.location.Location
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -202,7 +203,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         val locationService = Intent(this.application, LocationService::class.java)
-        this.application.startService(locationService)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            this.application.startForegroundService(locationService)
+        } else {
+            this.application.startService(locationService)
+        }
         this.application.bindService(locationService, serviceConnection, Context.BIND_AUTO_CREATE)
 
     }

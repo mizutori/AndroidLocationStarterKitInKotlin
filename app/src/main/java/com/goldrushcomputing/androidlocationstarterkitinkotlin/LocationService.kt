@@ -1,13 +1,20 @@
 package com.goldrushcomputing.androidlocationstarterkitinkotlin
 
 import android.annotation.SuppressLint
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Color
 import android.location.*
 import android.os.*
+import android.support.annotation.RequiresApi
+import android.support.v4.app.NotificationCompat
+import android.support.v4.app.NotificationCompat.PRIORITY_MIN
 import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
 import java.io.FileWriter
@@ -46,6 +53,9 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
     var batteryScale: Int = 0
     var gpsCount: Int = 0
 
+    private val ANDROID_CHANNEL_ID = "com.goldrushcomputing.androidlocationstarterkitinkotlin.Channel"
+    private val NOTIFICATION_ID = 555
+
     /* Battery Consumption */
 
     //override fun onCreate() {
@@ -79,6 +89,20 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
 
     override fun onStartCommand(i: Intent, flags: Int, startId: Int): Int {
         super.onStartCommand(i, flags, startId)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            /*
+            val builder = Notification.Builder(this, ANDROID_CHANNEL_ID)
+                .setContentTitle(getString(R.string.app_name))
+                .setContentText("SmartTracker Running")
+                .setAutoCancel(true)
+            val notification = builder.build()
+            startForeground(NOTIFICATION_ID, notification)
+            */
+            startForeground()
+        }
+
+
         return Service.START_STICKY
     }
 
@@ -107,7 +131,12 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
         Log.d(LOG_TAG, "onTaskRemoved ")
         this.stopUpdatingLocation()
 
-        stopSelf()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            stopForeground(true);
+        } else {
+            stopSelf();
+        }
+
     }
 
     /**
@@ -399,6 +428,36 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
 
             }
         }
+    }
+
+    private fun startForeground() {
+        val channelId =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                createNotificationChannel("my_service", "My Background Service")
+            } else {
+                // If earlier version channel ID is not used
+                // https://developer.android.com/reference/android/support/v4/app/NotificationCompat.Builder.html#NotificationCompat.Builder(android.content.Context)
+                ""
+            }
+
+        val notificationBuilder = NotificationCompat.Builder(this, channelId )
+        val notification = notificationBuilder.setOngoing(true)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setPriority(PRIORITY_MIN)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .build()
+        startForeground(101, notification)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createNotificationChannel(channelId: String, channelName: String): String{
+        val chan = NotificationChannel(channelId,
+            channelName, NotificationManager.IMPORTANCE_NONE)
+        chan.lightColor = Color.BLUE
+        chan.lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+        val service = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        service.createNotificationChannel(chan)
+        return channelId
     }
 
 }
