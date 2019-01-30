@@ -91,14 +91,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
         super.onStartCommand(i, flags, startId)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            /*
-            val builder = Notification.Builder(this, ANDROID_CHANNEL_ID)
-                .setContentTitle(getString(R.string.app_name))
-                .setContentText("SmartTracker Running")
-                .setAutoCancel(true)
-            val notification = builder.build()
-            startForeground(NOTIFICATION_ID, notification)
-            */
             startForeground()
         }
 
@@ -433,7 +425,7 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
     private fun startForeground() {
         val channelId =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                createNotificationChannel("my_service", "My Background Service")
+                createNotificationChannel("my_service", "Location Tracking Service")
             } else {
                 // If earlier version channel ID is not used
                 // https://developer.android.com/reference/android/support/v4/app/NotificationCompat.Builder.html#NotificationCompat.Builder(android.content.Context)

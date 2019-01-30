@@ -16,7 +16,6 @@ import android.view.View
 import android.widget.ImageButton
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import permissions.dispatcher.NeedsPermission
@@ -31,7 +30,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var map: GoogleMap
 
     var locationService: LocationService? = null
-    private var mapView: MapView? = null
 
     private var userPositionMarker: Marker? = null
     private var locationAccuracyCircle: Circle? = null
