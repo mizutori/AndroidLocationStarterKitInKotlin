@@ -9,11 +9,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
-import android.support.v4.content.LocalBroadcastManager
-import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.view.View
 import android.widget.ImageButton
+import androidx.appcompat.app.AppCompatActivity
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.SupportMapFragment
@@ -85,7 +85,9 @@ class MainActivity : AppCompatActivity() {
              * installed Google Play services and returned to the app.
              */
 
-            setupGoogleMapWithPermissionCheck(googleMap)
+
+
+            setupGoogleMap(googleMap)
 
         }
 
@@ -440,7 +442,7 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         // NOTE: delegate the permission handling to generated function
-       onRequestPermissionsResult(requestCode, grantResults)
+       onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
 

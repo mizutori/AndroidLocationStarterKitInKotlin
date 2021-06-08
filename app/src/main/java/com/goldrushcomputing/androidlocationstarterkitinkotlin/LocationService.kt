@@ -1,5 +1,6 @@
 package com.goldrushcomputing.androidlocationstarterkitinkotlin
 
+
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -12,11 +13,11 @@ import android.content.IntentFilter
 import android.graphics.Color
 import android.location.*
 import android.os.*
-import android.support.annotation.RequiresApi
-import android.support.v4.app.NotificationCompat
-import android.support.v4.app.NotificationCompat.PRIORITY_MIN
-import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
+import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationCompat.PRIORITY_MIN
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import java.io.FileWriter
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -57,6 +58,7 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
     private val NOTIFICATION_ID = 555
 
     /* Battery Consumption */
+    var batteryInfoReceiver: BroadcastReceiver? = null
 
     //override fun onCreate() {
     init {
@@ -70,7 +72,7 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
 
         isLogging = false
 
-        val batteryInfoReceiver = object : BroadcastReceiver() {
+        batteryInfoReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctxt: Context, intent: Intent) {
                 val batteryLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0)
                 val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
@@ -81,9 +83,9 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
                 batteryLevelScaledArray.add(java.lang.Float.valueOf(batteryLevelScaled))
                 batteryScale = scale
             }
+        }.also {
+            LocalBroadcastManager.getInstance(this@LocationService).registerReceiver(it, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         }
-
-        LocalBroadcastManager.getInstance(this).registerReceiver(batteryInfoReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
     }
 
 
@@ -93,7 +95,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForeground()
         }
-
 
         return Service.START_STICKY
     }
@@ -115,8 +116,14 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
 
     override fun onDestroy() {
         Log.d(LOG_TAG, "onDestroy ")
+        try {
+            batteryInfoReceiver?.let{
+                unregisterReceiver(it)
+            }
+        } catch (ex: IllegalArgumentException) {
+            ex.printStackTrace()
+        }
     }
-
 
     //This is where we detect the app is being killed, thus stop service.
     override fun onTaskRemoved(rootIntent: Intent) {
