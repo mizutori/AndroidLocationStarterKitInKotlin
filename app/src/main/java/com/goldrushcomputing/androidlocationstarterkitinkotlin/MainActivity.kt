@@ -86,8 +86,7 @@ class MainActivity : AppCompatActivity() {
              */
 
 
-
-            setupGoogleMap(googleMap)
+            setupGoogleMapWithPermissionCheck(googleMap)
 
         }
 
@@ -169,11 +168,12 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    @SuppressLint("MissingPermission")
     @NeedsPermission(Manifest.permission.ACCESS_FINE_LOCATION)
     fun setupGoogleMap(googleMap: GoogleMap) {
         map = googleMap
         map.uiSettings.isZoomControlsEnabled = false
-        map.isMyLocationEnabled = false //TODO: RuntimePermissionを後で入れる
+        map.isMyLocationEnabled = false
         map.uiSettings.isCompassEnabled = true
         map.uiSettings.isMyLocationButtonEnabled = true
 
@@ -442,8 +442,7 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         // NOTE: delegate the permission handling to generated function
-       onRequestPermissionsResult(requestCode, permissions, grantResults)
+        onRequestPermissionsResult(requestCode, grantResults)
     }
-
 
 }
