@@ -27,12 +27,10 @@ import java.util.*
  * Created by Takamitsu Mizutori on 2018/12/08.
  */
 class LocationService: Service(), LocationListener, GpsStatus.Listener {
-
     val LOG_TAG = LocationService::class.java.simpleName
 
     private val binder = LocationServiceBinder()
     private var isLocationManagerUpdatingLocation: Boolean = false
-
 
     var locationList: ArrayList<Location>
 
@@ -40,7 +38,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
     var noAccuracyLocationList: ArrayList<Location>
     var inaccurateLocationList: ArrayList<Location>
     var kalmanNGLocationList: ArrayList<Location>
-
 
     var isLogging: Boolean = false
 
@@ -60,7 +57,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
     /* Battery Consumption */
     var batteryInfoReceiver: BroadcastReceiver? = null
 
-    //override fun onCreate() {
     init {
         isLocationManagerUpdatingLocation = false
         locationList = ArrayList()
@@ -91,14 +87,11 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
 
     override fun onStartCommand(i: Intent, flags: Int, startId: Int): Int {
         super.onStartCommand(i, flags, startId)
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForeground()
         }
-
         return Service.START_STICKY
     }
-
 
     override fun onBind(intent: Intent?): IBinder {
         return binder
@@ -110,7 +103,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
 
     override fun onUnbind(intent: Intent): Boolean {
         Log.d(LOG_TAG, "onUnbind ")
-
         return true
     }
 
@@ -135,7 +127,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
         } else {
             stopSelf();
         }
-
     }
 
     /**
@@ -164,7 +155,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
 
             LocalBroadcastManager.getInstance(this.application).sendBroadcast(intent)
         }
-
     }
 
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
@@ -187,7 +177,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
         if (provider == LocationManager.GPS_PROVIDER) {
             notifyLocationProviderStatusUpdated(false)
         }
-
     }
 
     override fun onGpsStatusChanged(event: Int) {
@@ -201,7 +190,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
     fun startLogging() {
         isLogging = true
     }
-
 
     fun stopLogging() {
         if (locationList.size > 1 && batteryLevelArray.size > 1) {
@@ -236,9 +224,7 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
             isLocationManagerUpdatingLocation = true
             runStartTimeInMillis = SystemClock.elapsedRealtimeNanos() / 1000000
 
-
             locationList.clear()
-
             oldLocationList.clear()
             noAccuracyLocationList.clear()
             inaccurateLocationList.clear()
@@ -288,7 +274,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
             } catch (e: RuntimeException) {
                 Log.e(LOG_TAG, e.localizedMessage)
             }
-
         }
     }
 
@@ -339,7 +324,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
             return false
         }
 
-
         /* Kalman Filter */
         var Qvalue: Float = 3.0f
 
@@ -384,12 +368,8 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
         currentSpeed = location.speed
         locationList.add(location)
 
-
         return true
     }
-
-
-
 
     /* Data Logging */
     @Synchronized
@@ -424,7 +404,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
                 } catch (ioe: IOException) {
                     ioe.printStackTrace()
                 }
-
             }
         }
     }
@@ -438,7 +417,6 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
                 // https://developer.android.com/reference/android/support/v4/app/NotificationCompat.Builder.html#NotificationCompat.Builder(android.content.Context)
                 ""
             }
-
         val notificationBuilder = NotificationCompat.Builder(this, channelId )
         val notification = notificationBuilder.setOngoing(true)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -458,5 +436,4 @@ class LocationService: Service(), LocationListener, GpsStatus.Listener {
         service.createNotificationChannel(chan)
         return channelId
     }
-
 }

@@ -26,7 +26,6 @@ import java.util.*
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
 
-
     private lateinit var map: GoogleMap
 
     var locationService: LocationService? = null
@@ -37,10 +36,6 @@ class MainActivity : AppCompatActivity() {
     private var runningPathPolyline: Polyline? = null
     private val polylineOptions: PolylineOptions? = null
     private val polylineWidth = 30
-
-
-    //boolean isZooming;
-    //boolean isBlockingAutoZoom;
 
     internal var zoomable = true
 
@@ -64,17 +59,14 @@ class MainActivity : AppCompatActivity() {
     internal var malMarkers = ArrayList<Marker>()
     internal val handler = Handler()
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync { googleMap ->
-
             /**
              * Manipulates the map once available.
              * This callback is triggered when the map is ready to be used.
@@ -84,40 +76,30 @@ class MainActivity : AppCompatActivity() {
              * it inside the SupportMapFragment. This method will only be triggered once the user has
              * installed Google Play services and returned to the app.
              */
-
-
             setupGoogleMapWithPermissionCheck(googleMap)
-
         }
 
 
         locationUpdateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val newLocation = intent.getParcelableExtra<Location>("location")
-
                 drawLocationAccuracyCircle(newLocation)
                 drawUserPositionMarker(newLocation)
-
                 this@MainActivity.locationService?.let{
                     if (it.isLogging) {
                         addPolyline()
                     }
                 }
-
                 zoomMapTo(newLocation)
-
                 /* Filter Visualization */
                 drawMalLocations()
-
             }
         }
 
         predictedLocationReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val predictedLocation = intent.getParcelableExtra<Location>("location")
-
                 drawPredictionRange(predictedLocation)
-
             }
         }
 
@@ -180,14 +162,9 @@ class MainActivity : AppCompatActivity() {
         map.setOnCameraMoveStartedListener { reason ->
             if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
                 Log.d(TAG, "onCameraMoveStarted after user's zoom action")
-
                 zoomable = false
-
                 zoomBlockingTimer?.cancel()
-
-
                 handlerOnUIThread = Handler()
-
                 val task = object : TimerTask() {
                     override fun run() {
                         handlerOnUIThread?.post {
@@ -202,16 +179,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /* Start Location Service */
         val locationService = Intent(this.application, LocationService::class.java)
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             this.application.startForegroundService(locationService)
         } else {
             this.application.startService(locationService)
         }
         this.application.bindService(locationService, serviceConnection, Context.BIND_AUTO_CREATE)
-
     }
+
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             // This is called when the connection with the service has been
@@ -242,7 +219,6 @@ class MainActivity : AppCompatActivity() {
 
 
     public override fun onDestroy() {
-
         try {
             if (locationUpdateReceiver != null) {
                 unregisterReceiver(locationUpdateReceiver)
@@ -254,10 +230,7 @@ class MainActivity : AppCompatActivity() {
         } catch (ex: IllegalArgumentException) {
             ex.printStackTrace()
         }
-
-
         super.onDestroy()
-
     }
 
 
@@ -272,7 +245,6 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-
             //Toast.makeText(this.getActivity(), "Inital zoom in process", Toast.LENGTH_LONG).show();
         }
 
@@ -292,7 +264,6 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-
         }
     }
 
@@ -335,7 +306,7 @@ class MainActivity : AppCompatActivity() {
                     .strokeColor(Color.argb(64, 0, 0, 0))
                     .strokeWidth(0.0f)
                     .radius(location.accuracy.toDouble())
-            ) //set readius to horizonal accuracy in meter.
+            ) //set radius to horizonal accuracy in meter.
         }
     }
 
@@ -383,7 +354,6 @@ class MainActivity : AppCompatActivity() {
         runningPathPolyline = null
     }
 
-
     /* Filter Visualization */
     private fun drawMalLocations() {
         locationService?.let{
@@ -426,9 +396,7 @@ class MainActivity : AppCompatActivity() {
             ) //30 meters of the prediction range
         }
 
-
         this.predictionRange?.isVisible = true
-
         handler.postDelayed({ this@MainActivity.predictionRange?.isVisible = false }, 2000)
     }
 
@@ -444,5 +412,4 @@ class MainActivity : AppCompatActivity() {
         // NOTE: delegate the permission handling to generated function
         onRequestPermissionsResult(requestCode, grantResults)
     }
-
 }
