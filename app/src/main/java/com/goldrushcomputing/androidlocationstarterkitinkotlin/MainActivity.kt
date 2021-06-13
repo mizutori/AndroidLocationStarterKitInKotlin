@@ -45,18 +45,11 @@ class MainActivity : AppCompatActivity() {
 
 
     private var locationUpdateReceiver: BroadcastReceiver? = null
-    private var predictedLocationReceiver: BroadcastReceiver? = null
 
     private var startButton: ImageButton? = null
     private var stopButton: ImageButton? = null
 
     /* Filter */
-    private var predictionRange: Circle? = null
-    internal var oldLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
-    internal var noAccuracyLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
-    internal var inaccurateLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
-    internal var kalmanNGLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
-    internal var malMarkers = ArrayList<Marker>()
     internal val handler = Handler()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,15 +84,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 zoomMapTo(newLocation)
-                /* Filter Visualization */
-                drawMalLocations()
-            }
-        }
-
-        predictedLocationReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                val predictedLocation = intent.getParcelableExtra<Location>("location")
-                drawPredictionRange(predictedLocation)
             }
         }
 
@@ -107,13 +91,6 @@ class MainActivity : AppCompatActivity() {
             LocalBroadcastManager.getInstance(this).registerReceiver(
                 it,
                 IntentFilter("LocationUpdated")
-            )
-        }
-
-        predictedLocationReceiver?.let{
-            LocalBroadcastManager.getInstance(this).registerReceiver(
-                it,
-                IntentFilter("PredictLocation")
             )
         }
 
@@ -127,7 +104,6 @@ class MainActivity : AppCompatActivity() {
             stopButton?.visibility = View.VISIBLE
 
             clearPolyline()
-            clearMalMarkers()
             this@MainActivity.locationService?.startLogging()
         }
 
@@ -137,17 +113,6 @@ class MainActivity : AppCompatActivity() {
 
             this@MainActivity.locationService?.stopLogging()
         }
-
-
-        oldLocationMarkerBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.old_location_marker)
-        noAccuracyLocationMarkerBitmapDescriptor =
-                BitmapDescriptorFactory.fromResource(R.drawable.no_accuracy_location_marker)
-        inaccurateLocationMarkerBitmapDescriptor =
-                BitmapDescriptorFactory.fromResource(R.drawable.inaccurate_location_marker)
-        kalmanNGLocationMarkerBitmapDescriptor =
-                BitmapDescriptorFactory.fromResource(R.drawable.kalman_ng_location_marker)
-
-
     }
 
     @SuppressLint("MissingPermission")
@@ -223,13 +188,10 @@ class MainActivity : AppCompatActivity() {
             if (locationUpdateReceiver != null) {
                 unregisterReceiver(locationUpdateReceiver)
             }
-
-            if (predictedLocationReceiver != null) {
-                unregisterReceiver(predictedLocationReceiver)
-            }
         } catch (ex: IllegalArgumentException) {
             ex.printStackTrace()
         }
+
         super.onDestroy()
     }
 
@@ -346,64 +308,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
     }
 
     private fun clearPolyline() {
         runningPathPolyline?.remove()
         runningPathPolyline = null
-    }
-
-    /* Filter Visualization */
-    private fun drawMalLocations() {
-        locationService?.let{
-            drawMalMarkers(it.oldLocationList, oldLocationMarkerBitmapDescriptor!!)
-            drawMalMarkers(it.noAccuracyLocationList, noAccuracyLocationMarkerBitmapDescriptor!!)
-            drawMalMarkers(it.inaccurateLocationList, inaccurateLocationMarkerBitmapDescriptor!!)
-            drawMalMarkers(it.kalmanNGLocationList, kalmanNGLocationMarkerBitmapDescriptor!!)
-        }
-    }
-
-    private fun drawMalMarkers(locationList: ArrayList<Location>, descriptor: BitmapDescriptor) {
-        for (location in locationList) {
-            val latLng = LatLng(location.latitude, location.longitude)
-
-            val marker = map.addMarker(
-                MarkerOptions()
-                    .position(latLng)
-                    .flat(true)
-                    .anchor(0.5f, 0.5f)
-                    .icon(descriptor)
-            )
-
-            malMarkers.add(marker)
-        }
-    }
-
-    private fun drawPredictionRange(location: Location) {
-        val latLng = LatLng(location.latitude, location.longitude)
-
-        predictionRange?.let{
-            it.center = latLng
-        } ?: run {
-            predictionRange = map.addCircle(
-                CircleOptions()
-                    .center(latLng)
-                    .fillColor(Color.argb(50, 30, 207, 0))
-                    .strokeColor(Color.argb(128, 30, 207, 0))
-                    .strokeWidth(1.0f)
-                    .radius(30.0)
-            ) //30 meters of the prediction range
-        }
-
-        this.predictionRange?.isVisible = true
-        handler.postDelayed({ this@MainActivity.predictionRange?.isVisible = false }, 2000)
-    }
-
-    private fun clearMalMarkers() {
-        for (marker in malMarkers) {
-            marker.remove()
-        }
     }
 
     @SuppressLint("NeedOnRequestPermissionsResult")
