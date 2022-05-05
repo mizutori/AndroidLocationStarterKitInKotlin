@@ -61,6 +61,11 @@ class MainActivity : AppCompatActivity() {
     private var kalmanNGLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
     private var malMarkers = ArrayList<Marker>()
 
+    /* Check enough good locations before showing START button */
+    private var enoughLocationsReceiver: BroadcastReceiver? = null
+    private var showStartButton = false
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -134,6 +139,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        enoughLocationsReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                // Make startButton visible
+                startButton?.visibility = View.VISIBLE
+            }
+        }
+
         locationUpdateReceiver?.let{
             @Suppress("DEPRECATION")
             LocalBroadcastManager.getInstance(this).registerReceiver(
@@ -150,8 +162,17 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
+        enoughLocationsReceiver?.let{
+            @Suppress("DEPRECATION")
+            LocalBroadcastManager.getInstance(this).registerReceiver(
+                it,
+                IntentFilter("GotEnoughLocations")
+            )
+        }
+
         startButton = this.findViewById(R.id.start_button) as ImageButton
         stopButton = this.findViewById(R.id.stop_button) as ImageButton
+        startButton?.visibility = View.INVISIBLE
         stopButton?.visibility = View.INVISIBLE
 
 

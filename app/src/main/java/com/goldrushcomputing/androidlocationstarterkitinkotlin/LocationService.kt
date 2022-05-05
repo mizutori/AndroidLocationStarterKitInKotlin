@@ -63,6 +63,8 @@ class LocationService: Service(), LocationListener {
     /* Battery Consumption */
     private var batteryInfoReceiver: BroadcastReceiver? = null
 
+    var goodGpsCount: Int = 0
+
     init {
         isLocationManagerUpdatingLocation = false
         locationList = ArrayList()
@@ -144,9 +146,24 @@ class LocationService: Service(), LocationListener {
 
         gpsCount++
 
+        val filtered = filterLocation(newLocation)
+
         if (isLogging) {
-            //locationList.add(newLocation);
-            filterAndAddLocation(newLocation)
+            filtered?.let{
+                currentSpeed = it.speed
+                locationList.add(it)
+            }
+        }else{
+            // if newLocation passed the filter, count up goodLocationCount.
+            filtered?.let{
+                goodGpsCount++
+                if(goodGpsCount > 2){
+                    val intent = Intent("GotEnoughLocations")
+                    intent.putExtra("goodLocationCount", goodGpsCount)
+                    @Suppress("DEPRECATION")
+                    LocalBroadcastManager.getInstance(this.application).sendBroadcast(intent)
+                }
+            }
         }
 
         val intent = Intent("LocationUpdated")
@@ -251,6 +268,8 @@ class LocationService: Service(), LocationListener {
                 batteryLevelArray.clear()
                 batteryLevelScaledArray.clear()
 
+                goodGpsCount = 0
+
             } catch (e: IllegalArgumentException) {
                 e.localizedMessage?.let { Log.e(LOG_TAG, it) }
             } catch (e: SecurityException) {
@@ -279,77 +298,31 @@ class LocationService: Service(), LocationListener {
     }
 
 
-    private fun filterAndAddLocation(location: Location): Boolean {
+    private fun filterLocation(location: Location): Location? {
 
         val age = getLocationAge(location)
 
         if (age > 5 * 1000) { //more than 5 seconds
             Log.d(LOG_TAG, "Location is old")
             oldLocationList.add(location)
-            return false
+            return null
         }
 
         if (location.accuracy <= 0) {
             Log.d(LOG_TAG, "Latitidue and longitude values are invalid.")
             noAccuracyLocationList.add(location)
-            return false
+            return null
         }
 
-        //setAccuracy(newLocation.getAccuracy());
         val horizontalAccuracy = location.accuracy
         if (horizontalAccuracy > 1000) { //10meter filter
             Log.d(LOG_TAG, "Accuracy is too low.")
             inaccurateLocationList.add(location)
-            return false
+            return null
         }
-
-        /* Kalman Filter */
-        var Qvalue: Float = 3.0f
-
-        val locationTimeInMillis = location.elapsedRealtimeNanos / 1000000
-        val elapsedTimeInMillis = locationTimeInMillis - runStartTimeInMillis
-
-        @Suppress("DEPRECATION")
-        if (currentSpeed == 0.0f) {
-            Qvalue = 3.0f //3 meters per second
-        } else {
-            Qvalue = currentSpeed // meters per second
-        }
-
-        kalmanFilter.Process(location.latitude, location.longitude, location.accuracy, elapsedTimeInMillis, Qvalue)
-        val predictedLat = kalmanFilter.get_lat()
-        val predictedLng = kalmanFilter.get_lng()
-
-        val predictedLocation = Location("")//provider name is unecessary
-        predictedLocation.latitude = predictedLat//your coords of course
-        predictedLocation.longitude = predictedLng
-        val predictedDeltaInMeters = predictedLocation.distanceTo(location)
-
-        if (predictedDeltaInMeters > 60) {
-            Log.d(LOG_TAG, "Kalman Filter detects mal GPS, we should probably remove this from track")
-            kalmanFilter.consecutiveRejectCount += 1
-
-            if (kalmanFilter.consecutiveRejectCount > 3) {
-                kalmanFilter = KalmanLatLong(3f) //reset Kalman Filter if it rejects more than 3 times in raw.
-            }
-
-            kalmanNGLocationList.add(location)
-            return false
-        } else {
-            kalmanFilter.consecutiveRejectCount = 0
-        }
-
-        /* Notifiy predicted location to UI */
-        val intent = Intent("PredictLocation")
-        intent.putExtra("location", predictedLocation)
-        @Suppress("DEPRECATION")
-        LocalBroadcastManager.getInstance(this.application).sendBroadcast(intent)
 
         Log.d(LOG_TAG, "Location quality is good enough.")
-        currentSpeed = location.speed
-        locationList.add(location)
-
-        return true
+        return location
     }
 
     /* Data Logging */
