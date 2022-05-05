@@ -1,32 +1,36 @@
 package com.goldrushcomputing.androidlocationstarterkitinkotlin
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.*
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.location.Location
-import android.os.Build
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.ImageButton
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
-import permissions.dispatcher.NeedsPermission
-import permissions.dispatcher.RuntimePermissions
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.*
 
-@RuntimePermissions
 class MainActivity : AppCompatActivity() {
     private val TAG = "MainActivity"
 
-    private lateinit var map: GoogleMap
+    private lateinit var activityResultLauncher: ActivityResultLauncher<String>
+    private var map: GoogleMap? = null
 
     var locationService: LocationService? = null
 
@@ -34,15 +38,13 @@ class MainActivity : AppCompatActivity() {
     private var locationAccuracyCircle: Circle? = null
     private var userPositionMarkerBitmapDescriptor: BitmapDescriptor? = null
     private var runningPathPolyline: Polyline? = null
-    private val polylineOptions: PolylineOptions? = null
+    private val polylineOptions = PolylineOptions()
     private val polylineWidth = 30
 
     internal var zoomable = true
 
     internal var zoomBlockingTimer: Timer? = null
-    internal var didInitialZoom: Boolean = false
-    private var handlerOnUIThread: Handler? = null
-
+    private var didInitialZoom: Boolean = false
 
     private var locationUpdateReceiver: BroadcastReceiver? = null
     private var predictedLocationReceiver: BroadcastReceiver? = null
@@ -52,16 +54,27 @@ class MainActivity : AppCompatActivity() {
 
     /* Filter */
     private var predictionRange: Circle? = null
-    internal var oldLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
-    internal var noAccuracyLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
-    internal var inaccurateLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
-    internal var kalmanNGLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
-    internal var malMarkers = ArrayList<Marker>()
-    internal val handler = Handler()
+    private var oldLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
+    private var noAccuracyLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
+    private var inaccurateLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
+    private var kalmanNGLocationMarkerBitmapDescriptor: BitmapDescriptor? = null
+    private var malMarkers = ArrayList<Marker>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        activityResultLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (isGranted && checkAccessFineLocationPermission()) {
+                map?.let {
+                    onLocationPermissionGranted(it)
+                }
+            } else {
+                showLocationPermissionDialog(isFirstTime = false)
+            }
+        }
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
@@ -76,34 +89,52 @@ class MainActivity : AppCompatActivity() {
              * it inside the SupportMapFragment. This method will only be triggered once the user has
              * installed Google Play services and returned to the app.
              */
-            setupGoogleMapWithPermissionCheck(googleMap)
+            googleMap.uiSettings.apply {
+                isZoomControlsEnabled = false
+                isCompassEnabled = true
+                isMyLocationButtonEnabled = true
+            }
+            if (checkAccessFineLocationPermission()) {
+                onLocationPermissionGranted(googleMap)
+            } else {
+                showLocationPermissionDialog(isFirstTime = true)
+            }
+            map = googleMap
+
+            /* Start Location Service */
+            val locationService = Intent(this.application, LocationService::class.java)
+            this.application.startForegroundService(locationService)
+            this.application.bindService(locationService, serviceConnection, Context.BIND_AUTO_CREATE)
         }
 
 
         locationUpdateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                val newLocation = intent.getParcelableExtra<Location>("location")
-                drawLocationAccuracyCircle(newLocation)
-                drawUserPositionMarker(newLocation)
-                this@MainActivity.locationService?.let{
-                    if (it.isLogging) {
-                        addPolyline()
+                intent.getParcelableExtra<Location>("location")?.let{ newLocation ->
+                    drawLocationAccuracyCircle(newLocation)
+                    drawUserPositionMarker(newLocation)
+                    this@MainActivity.locationService?.let{
+                        if (it.isLogging) {
+                            addPolyline()
+                        }
                     }
+                    zoomMapTo(newLocation)
+                    /* Filter Visualization */
+                    drawMalLocations()
                 }
-                zoomMapTo(newLocation)
-                /* Filter Visualization */
-                drawMalLocations()
             }
         }
 
         predictedLocationReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                val predictedLocation = intent.getParcelableExtra<Location>("location")
-                drawPredictionRange(predictedLocation)
+                intent.getParcelableExtra<Location>("location")?.let{ predictedLocation ->
+                    drawPredictionRange(predictedLocation)
+                }
             }
         }
 
         locationUpdateReceiver?.let{
+            @Suppress("DEPRECATION")
             LocalBroadcastManager.getInstance(this).registerReceiver(
                 it,
                 IntentFilter("LocationUpdated")
@@ -111,6 +142,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         predictedLocationReceiver?.let{
+            @Suppress("DEPRECATION")
             LocalBroadcastManager.getInstance(this).registerReceiver(
                 it,
                 IntentFilter("PredictLocation")
@@ -150,43 +182,62 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    @SuppressLint("MissingPermission")
-    @NeedsPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    fun setupGoogleMap(googleMap: GoogleMap) {
-        map = googleMap
-        map.uiSettings.isZoomControlsEnabled = false
-        map.isMyLocationEnabled = false
-        map.uiSettings.isCompassEnabled = true
-        map.uiSettings.isMyLocationButtonEnabled = true
+    private fun checkAccessFineLocationPermission(): Boolean {
+        return ActivityCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
 
-        map.setOnCameraMoveStartedListener { reason ->
-            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                Log.d(TAG, "onCameraMoveStarted after user's zoom action")
-                zoomable = false
-                zoomBlockingTimer?.cancel()
-                handlerOnUIThread = Handler()
-                val task = object : TimerTask() {
-                    override fun run() {
-                        handlerOnUIThread?.post {
-                            zoomBlockingTimer = null
-                            zoomable = true
+    private fun showLocationPermissionDialog(isFirstTime: Boolean) {
+        if(isFirstTime){
+            MaterialAlertDialogBuilder(this, R.style.DefaultAlertDialogStyle)
+                .setTitle(R.string.map_dialog_ask_permission_title)
+                .setMessage(R.string.map_dialog_ask_permission_description)
+                .setPositiveButton(R.string.map_dialog_ask_permission_next) { _, _ ->
+                    activityResultLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+                .create()
+                .show()
+        }else{
+            //From the second time (coming back from the default location permission dialog)
+            MaterialAlertDialogBuilder(this, R.style.DefaultAlertDialogStyle)
+                .setTitle(R.string.map_dialog_no_permission_title)
+                .setMessage(R.string.map_dialog_no_permission_description)
+                .setPositiveButton(R.string.map_dialog_no_permission_do_not_allow) { _, _ -> }
+                .setNegativeButton(R.string.map_dialog_no_permission_open_settings) { _, _ ->
+                    startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", this@MainActivity.packageName, null)
+                    })
+                }
+                .create()
+                .show()
+        }
+
+    }
+
+    private fun onLocationPermissionGranted(map: GoogleMap) {
+        if (checkAccessFineLocationPermission()) {
+            map.isMyLocationEnabled = false
+            map.setOnCameraMoveStartedListener { reason ->
+                if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                    Log.d(TAG, "onCameraMoveStarted after user's zoom action")
+                    zoomable = false
+                    zoomBlockingTimer?.cancel()
+                    val task = object : TimerTask() {
+                        override fun run() {
+                            Handler(Looper.getMainLooper()).post { // Update UI
+                                zoomBlockingTimer = null
+                                zoomable = true
+                            }
                         }
                     }
+                    zoomBlockingTimer = Timer()
+                    zoomBlockingTimer?.schedule(task, (10 * 1000).toLong())
+                    Log.d(TAG, "start blocking auto zoom for 10 seconds")
                 }
-                zoomBlockingTimer = Timer()
-                zoomBlockingTimer?.schedule(task, (10 * 1000).toLong())
-                Log.d(TAG, "start blocking auto zoom for 10 seconds")
             }
         }
-
-        /* Start Location Service */
-        val locationService = Intent(this.application, LocationService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            this.application.startForegroundService(locationService)
-        } else {
-            this.application.startService(locationService)
-        }
-        this.application.bindService(locationService, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
     private val serviceConnection = object : ServiceConnection {
@@ -237,9 +288,9 @@ class MainActivity : AppCompatActivity() {
     private fun zoomMapTo(location: Location) {
         val latLng = LatLng(location.latitude, location.longitude)
 
-        if (this.didInitialZoom == false) {
+        if (!this.didInitialZoom) {
             try {
-                map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17.5f))
+                map?.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17.5f))
                 this.didInitialZoom = true
                 return
             } catch (e: Exception) {
@@ -251,7 +302,7 @@ class MainActivity : AppCompatActivity() {
         if (zoomable) {
             try {
                 zoomable = false
-                map.animateCamera(CameraUpdateFactory.newLatLng(latLng),
+                map?.animateCamera(CameraUpdateFactory.newLatLng(latLng),
                     object : GoogleMap.CancelableCallback {
                         override fun onFinish() {
                             zoomable = true
@@ -276,9 +327,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         userPositionMarker?.let{
-            it.setPosition(latLng)
+            it.position = latLng
         } ?: run{
-            userPositionMarker = map.addMarker(
+            userPositionMarker = map?.addMarker(
                 MarkerOptions()
                     .position(latLng)
                     .flat(true)
@@ -299,7 +350,7 @@ class MainActivity : AppCompatActivity() {
         locationAccuracyCircle?.let{
             it.center = latLng
         } ?: run{
-            this.locationAccuracyCircle = map.addCircle(
+            this.locationAccuracyCircle = map?.addCircle(
                 CircleOptions()
                     .center(latLng)
                     .fillColor(Color.argb(64, 0, 0, 0))
@@ -338,8 +389,8 @@ class MainActivity : AppCompatActivity() {
                         toLocation.longitude
                     )
 
-                    this.runningPathPolyline = map.addPolyline(
-                        PolylineOptions()
+                    this.runningPathPolyline = map?.addPolyline(
+                        polylineOptions
                             .add(from, to)
                             .width(polylineWidth.toFloat()).color(Color.parseColor("#801B60FE")).geodesic(true)
                     )
@@ -367,16 +418,16 @@ class MainActivity : AppCompatActivity() {
     private fun drawMalMarkers(locationList: ArrayList<Location>, descriptor: BitmapDescriptor) {
         for (location in locationList) {
             val latLng = LatLng(location.latitude, location.longitude)
-
-            val marker = map.addMarker(
+            val marker = map?.addMarker(
                 MarkerOptions()
                     .position(latLng)
                     .flat(true)
                     .anchor(0.5f, 0.5f)
                     .icon(descriptor)
             )
-
-            malMarkers.add(marker)
+            marker?.let{
+                malMarkers.add(it)
+            }
         }
     }
 
@@ -386,7 +437,7 @@ class MainActivity : AppCompatActivity() {
         predictionRange?.let{
             it.center = latLng
         } ?: run {
-            predictionRange = map.addCircle(
+            predictionRange = map?.addCircle(
                 CircleOptions()
                     .center(latLng)
                     .fillColor(Color.argb(50, 30, 207, 0))
@@ -397,19 +448,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         this.predictionRange?.isVisible = true
-        handler.postDelayed({ this@MainActivity.predictionRange?.isVisible = false }, 2000)
+        Handler(Looper.getMainLooper()).postDelayed({
+            this@MainActivity.predictionRange?.isVisible = false
+        }, 2000)
     }
 
     private fun clearMalMarkers() {
         for (marker in malMarkers) {
             marker.remove()
         }
-    }
-
-    @SuppressLint("NeedOnRequestPermissionsResult")
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        // NOTE: delegate the permission handling to generated function
-        onRequestPermissionsResult(requestCode, grantResults)
     }
 }

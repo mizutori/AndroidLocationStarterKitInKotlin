@@ -1,4 +1,21 @@
 <resources>
     <string name="app_name">AndroidLocationStarterKitInKotlin</string>
     <string name="title_activity_maps">AndroidLocationStarterKit</string>
+
+    <string name="location_service_notification_text">Tracking location…</string>
+    <string name="location_service_notification_channel_name">Notification about location tracking state</string>
+    <string name="location_service_notification_channel_description">Shown while tracking user\'s location</string>
+
+    <string name="map_dialog_ask_permission_title">Please authorize the app to use location service</string>
+    <string name="map_dialog_ask_permission_description">Please choose \"While using the app\" in the next dialog to authorize the app to tracks your location.</string>
+    <string name="map_dialog_ask_permission_next">next</string>
+    <string name="map_dialog_no_permission_title">App isn\'t not given proper permission to use Location Service</string>
+    <string name="map_dialog_no_permission_description">The app needs Location Service permission to track your position.</string>
+    <string name="map_dialog_no_permission_open_settings">Settings</string>
+
+    <string name="map_dialog_no_permission_do_not_allow">I don\'t permit</string>
+
+
+
+
 </resources>
