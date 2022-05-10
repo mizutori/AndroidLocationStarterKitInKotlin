@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private var map: GoogleMap? = null
 
     var locationService: LocationService? = null
+    var isServiceBound = false
 
     private var userPositionMarker: Marker? = null
     private var locationAccuracyCircle: Circle? = null
@@ -104,7 +105,7 @@ class MainActivity : AppCompatActivity() {
             /* Start Location Service */
             val locationService = Intent(this.application, LocationService::class.java)
             this.application.startForegroundService(locationService)
-            this.application.bindService(locationService, serviceConnection, Context.BIND_AUTO_CREATE)
+            isServiceBound = this.application.bindService(locationService, serviceConnection, Context.BIND_AUTO_CREATE)
         }
 
 
@@ -281,9 +282,23 @@ class MainActivity : AppCompatActivity() {
         } catch (ex: IllegalArgumentException) {
             ex.printStackTrace()
         }
+        stopLocationService()
         super.onDestroy()
     }
 
+    private fun stopLocationService(){
+        locationService?.let{
+            if(it.isLogging){
+                it.stopLogging()
+            }
+            it.stopUpdatingLocation()
+            if(isServiceBound){
+                this.application.unbindService(serviceConnection)
+                isServiceBound = false
+                it.stopForeground(true)
+            }
+        }
+    }
 
     private fun zoomMapTo(location: Location) {
         val latLng = LatLng(location.latitude, location.longitude)
